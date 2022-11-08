@@ -1,5 +1,7 @@
 package id.gultom.mongopolymorph
 
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.bson.types.ObjectId
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -83,7 +85,7 @@ class JobScheduler(
 ) {
 
     @Transactional
-    fun fetchMarkJobs(): List<Job> {
+    suspend fun fetchMarkJobs(): List<Job> {
         val jobs = mongoTemplate.find(query(where("status").`is`(JobStatus.Pending)).limit(5), Job::class.java)
         mongoTemplate.updateMulti(
             query(where("_id").`in`(jobs.map { it._id })),
@@ -93,7 +95,7 @@ class JobScheduler(
         return jobs
     }
 
-    fun processJob(job: Job) {
+    suspend fun processJob(job: Job) {
         // do some process
         when (job) {
             is FooJob -> logger.info("Processing ${job.id} ${job.name} is a Foo Job with foo ${job.foo}")
@@ -107,11 +109,15 @@ class JobScheduler(
         )
     }
 
-    @Scheduled(fixedRate = 10000)
+    @Scheduled(cron = "\${app.job.scheduled.cron:-}")
     fun runJobs() {
         logger.info("Running jobs..")
-        fetchMarkJobs().forEach {
-            processJob(it)
+        runBlocking {
+            launch {
+                fetchMarkJobs().forEach {
+                    processJob(it)
+                }
+            }
         }
     }
 }

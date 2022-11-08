@@ -2,8 +2,3 @@ spring:
   data:
     mongodb:
       uri: mongodb://admin:admin@localhost:27017/test_db?authSource=admin&authMechanism=SCRAM-SHA-256
-
-app:
-  job:
-    scheduled:
-      cron: "*/30 * * * * *"
