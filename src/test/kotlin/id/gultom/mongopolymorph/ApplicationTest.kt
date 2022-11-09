@@ -1,5 +1,6 @@
 package id.gultom.mongopolymorph
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -24,6 +25,9 @@ class ApplicationTest {
 
     @Autowired
     private lateinit var logger: Logger
+
+    @Autowired
+    private lateinit var objectMapper: ObjectMapper
 
     @AfterEach
     fun after() {
@@ -51,16 +55,22 @@ class ApplicationTest {
                 async {
                     val jobs = jobScheduler.fetchMarkJobs()
                     jobs.forEach {
-                        logger.info("job {} {}", it.id, it.name)
+                        logger.info(objectMapper.writeValueAsString(it))
                     }
                     jobs
                 }
             }
             val resultSet = mutableSetOf<String>()
             results.forEach { deferred ->
-                deferred.await().forEach {
-                    resultSet.add(it.id)
-                }
+                deferred.await()
+                    // verify createdAt & updatedAt is populated
+                    .filter { it.createdAt != null && it.updatedAt != null }
+                    // verify no duplicate id
+                    .forEach {
+                        if (it.id != null) {
+                            resultSet.add(it.id.toString())
+                        }
+                    }
             }
             resultSet
         }

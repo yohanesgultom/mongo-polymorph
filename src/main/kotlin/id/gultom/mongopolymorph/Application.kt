@@ -2,7 +2,6 @@ package id.gultom.mongopolymorph
 
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.bson.types.ObjectId
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.InjectionPoint
@@ -10,9 +9,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Scope
+import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.Id
+import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import org.springframework.data.mongodb.config.EnableMongoAuditing
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.mapping.Document
 import org.springframework.data.mongodb.core.query.Criteria.where
@@ -25,14 +27,11 @@ import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.ResponseStatus
-import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.bind.annotation.*
+import java.time.Instant
 
 @Suppress("unused")
+@EnableMongoAuditing
 @EnableScheduling
 @SpringBootApplication
 class Application {
@@ -88,7 +87,7 @@ class JobScheduler(
     suspend fun fetchMarkJobs(): List<Job> {
         val jobs = mongoTemplate.find(query(where("status").`is`(JobStatus.Pending)).limit(5), Job::class.java)
         mongoTemplate.updateMulti(
-            query(where("_id").`in`(jobs.map { it._id })),
+            query(where("_id").`in`(jobs.map { it.id })),
             update("status", JobStatus.Processing),
             Job::class.java
         )
@@ -103,7 +102,7 @@ class JobScheduler(
         }
         // update status
         mongoTemplate.updateFirst(
-            query(where("_id").`is`(job._id)),
+            query(where("_id").`is`(job.id)),
             update("status", listOf(JobStatus.Success, JobStatus.Failed).random()),
             Job::class.java
         )
@@ -139,26 +138,25 @@ enum class JobStatus {
 @Suppress("unused")
 @Document(collection = "jobs")
 open class Job(
-    @Id val _id: ObjectId = ObjectId.get(),
+    @Id var id: String? = null,
     val name: String,
     val status: JobStatus = JobStatus.Pending,
-) {
-    @org.springframework.data.annotation.Transient
-    val id: String = _id.toHexString()
-}
+    @CreatedDate var createdAt: Instant? = null,
+    @LastModifiedDate var updatedAt: Instant? = null,
+)
 
 @Document(collection = "jobs")
 class FooJob(
-    _id: ObjectId = ObjectId.get(),
+    id: String? = null,
     name: String,
     status: JobStatus = JobStatus.Pending,
     val foo: Int
-) : Job(_id, name, status)
+) : Job(id, name, status)
 
 @Document(collection = "jobs")
 class BarJob(
-    _id: ObjectId = ObjectId.get(),
+    id: String? = null,
     name: String,
     status: JobStatus = JobStatus.Pending,
     val bar: Int
-) : Job(_id, name, status)
+) : Job(id, name, status)
